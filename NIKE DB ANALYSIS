@@ -1,0 +1,59 @@
+WITH total_order_items AS (
+  
+SELECT * FROM order_items
+  
+UNION ALL
+  
+SELECT * FROM order_items_vintage
+  
+),
+
+		total_revenue AS (
+ 
+SELECT CASE WHEN customers.state = 'US State' THEN 'California'
+						ELSE COALESCE(customers.state, 'Missing Data')
+       END AS clean_state,
+       SUM(sale_price) total_revenue,
+       count(returned_at) returned_items,
+       count(returned_at)*1.0/count(distinct order_item_id) return_rate
+
+FROM total_order_items
+		 LEFT JOIN customers ON total_order_items.user_id = customers.customer_id
+     
+GROUP BY clean_state
+    
+),
+
+		completed_orders AS (
+
+SELECT CASE WHEN customers.state = 'US State' THEN 'California'
+						ELSE COALESCE(customers.state, 'Missing Data')
+       END AS clean_state,
+			 COUNT(DISTINCT orders.order_id) total_completed_orders,
+       COUNT(DISTINCT official.order_id) official_completed_orders,
+       COUNT(DISTINCT vintage.order_id) vintage_completed_orders
+
+FROM orders
+		 LEFT JOIN order_items official ON official.order_id = orders.order_id
+     LEFT JOIN order_items_vintage vintage ON vintage.order_id = orders.order_id
+     LEFT JOIN customers ON orders.user_id = customers.customer_id
+     
+WHERE orders.status = 'Complete'
+
+GROUP BY clean_state
+      
+)
+
+SELECT completed_orders.clean_state,
+			 completed_orders.total_completed_orders,
+       completed_orders.official_completed_orders,
+       completed_orders.vintage_completed_orders,
+       total_revenue.total_revenue,
+       total_revenue.returned_items,
+       total_revenue.return_rate
+       
+
+FROM completed_orders
+		 LEFT JOIN total_revenue ON total_revenue.clean_state = completed_orders.clean_state
+
+;
