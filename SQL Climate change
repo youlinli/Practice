@@ -1,0 +1,157 @@
+Question 1: How many countries are represented in this dataset?
+A: 
+SELECT 
+  COUNT(DISTINCT(country)) 
+FROM 
+  temperatures_by_country
+
+Question 2: How many temperatures with a null value exist in this dataset?
+what is the overall percentage of null temperatures?
+A: 
+SELECT
+	COUNT(CASE WHEN avg_temp IS NULL   THEN 1 END) null_count,
+	SUM(CASE WHEN avg_temp IS NULL  THEN 1 END)*1.0 / COUNT(dt) null_percentage
+FROM 
+  temperatures_by_country
+
+Question 3: what is the earliest and latest year represented in this dataset？
+A: 
+SELECT 
+  min(dt), max(dt)
+FROM 
+  temperatures_by_country
+
+Question 4: what are the top 10 countries with the highest average temperature?
+A: 
+SELECT 
+  DISTINCT(country), 
+  AVG(avg_temp)
+FROM 
+  temperatures_by_country
+WHERE 
+  avg_temp IS NOT NULL
+GROUP BY 
+  country
+ORDER BY 
+  avg(avg_temp) DESC
+LIMIT 10
+
+Question 5: BEWEEN THE YEARS 2000 AND 2013, WHAT DIFFERENCE IN AVERAGE YEARLY TEMPERATURE BETWEEN
+DJIBOUTI AND GREENLAND?
+
+with djibouti as (
+SELECT 
+  EXTRACT(YEAR FROM dt) AS year,
+  AVG(avg_temp), 
+  COUNTRY
+FROM temperatures_by_country
+WHERE 
+  COUNTRY IN ('Djibouti') 
+  AND
+  (EXTRACT(YEAR FROM dt) BETWEEN 2000 AND 2013)
+GROUP BY 
+  year, country
+),
+
+greenland as 
+( SELECT 
+  EXTRACT(YEAR FROM dt) AS year, 
+  AVG(avg_temp), 
+  COUNTRY
+FROM temperatures_by_country
+WHERE 
+  COUNTRY IN ('Greenland') 
+  AND
+  (EXTRACT(YEAR FROM dt) BETWEEN 2000 AND 2013)
+GROUP BY 
+  year, 
+  COUNTRY 
+)
+
+SELECT 
+  AVG(djibouti.avg - greenland.avg) differences
+FROM 
+  greenland
+FULL JOIN djibouti ON djibouti.year = greenland.year
+
+
+VERSION 2
+
+WITH T1 AS
+(SELECT   country, avg_temp FROM temperatures_by_country 
+ WHERE country IN ('Djibouti', 'Greenland')
+ AND avg_temp IS NOT NULL
+ AND EXTRACT(YEAR FROM dt) BETWEEN 2000 AND 2013
+),
+T2 AS
+(SELECT country, AVG(avg_temp) AS c_a FROM T1 GROUP BY 1)
+SELECT MAX(c_a) - min(c_a) AS temp_diff
+FROM T2
+
+
+
+Question 6:
+STARTING FROM THE YEAR 2000, WHAT IS THE RELATIVE CHANGE IN OVERALL CLIMATE YEAR OVER 
+YEAR IN FAHRENHEIT. RELATIVE CHANGE = ((X2-X1)/X1)
+
+A: VERSION 1
+with six as (
+SELECT 
+  	EXTRACT(YEAR FROM dt) AS year, 
+  	AVG((avg_temp*(9/5))+32), 
+  	COUNTRY
+FROM temperatures_by_country
+WHERE (EXTRACT(YEAR FROM dt) >=1999)
+AND avg_temp IS NOT NULL
+GROUP BY year, COUNTRY
+)
+
+SELECT 
+		YEAR, 
+    AVG(AVG),
+    lag(AVG(avg)) OVER (ORDER BY YEAR),
+    AVG(avg) - lag(AVG(avg)) OVER (ORDER BY year) year_difference,
+    (AVG(avg) - lag(AVG(avg)) OVER (ORDER BY year))/lag(AVG(avg)) OVER (ORDER BY year) rate
+FROM six
+GROUP BY YEAR
+
+
+VERSION 2:
+
+with raw_data as (
+  select year, avg_temp_f,
+    lag(avg_temp_f) over (
+      order by year
+    ) as prev_avg_temp_f
+  from (
+    select date_part('year', dt) as year,
+      avg(avg_temp)::numeric * (9/5) + 32 avg_temp_f
+    from temperatures_by_country
+    group by 1
+  ) r
+)
+select year, avg_temp_f, prev_avg_temp_f,
+ ((avg_temp_f - prev_avg_temp_f) /
+   avg_temp_f) as relative_change
+from raw_data
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
